@@ -18,7 +18,7 @@ CURRENCY = "BRL"
 # ID da colecao New In na VTEX (Catalogo > Colecoes). Produtos dela recebem custom_label_0 = new_in
 NEW_IN_COLLECTION = "1745"
 
-# True = o feed so leva produtos New In. False = catalogo inteiro
+# True = so produtos New In ficam ativos (os demais vao como out_of_stock). False = catalogo inteiro
 ONLY_NEW_IN = True
 
 AVAILABILITY = {
@@ -110,8 +110,6 @@ def main():
         link = f.get("link", "")
         if not item_id or not link:
             continue
-        if ONLY_NEW_IN and new_in and item_id not in new_in:
-            continue
 
         price = fmt_price(f.get("price"))
         sale = fmt_price(f.get("sale_price"))
@@ -129,7 +127,8 @@ def main():
             "additional_image_urls": ",".join(extra_imgs[:10]),
             "price": price,
             "sale_price": sale if sale and sale != price else "",
-            "availability": AVAILABILITY.get(f.get("availability", "").lower(), "in_stock"),
+            "availability": ("out_of_stock" if ONLY_NEW_IN and new_in and item_id not in new_in
+                             else AVAILABILITY.get(f.get("availability", "").lower(), "in_stock")),
             "condition": f.get("condition", "new") or "new",
             "product_type": clean(f.get("product_type")),
             "google_product_category": clean(f.get("google_product_category")),
