@@ -2,6 +2,7 @@
 import csv
 import html
 import re
+import json
 import urllib.request
 import xml.etree.ElementTree as ET
 
@@ -13,6 +14,9 @@ SELLER_URL = "https://www.ateen.com.br"
 RETURN_POLICY = "https://ateen.zendesk.com/hc/pt-br/sections/360003548834-Troca-e-Devolu%C3%A7%C3%A3o"
 COUNTRY = "BR"
 CURRENCY = "BRL"
+
+# ID da colecao New In na VTEX (Catalogo > Colecoes). Produtos dela recebem custom_label_0 = new_in
+NEW_IN_COLLECTION = "1745"
 
 AVAILABILITY = {
     "in stock": "in_stock", "in_stock": "in_stock",
@@ -60,7 +64,29 @@ def fmt_price(value):
         return ""
 
 
+def new_in_ids():
+    """Busca na API publica da VTEX os produtos da colecao New In."""
+    if not NEW_IN_COLLECTION.isdigit():
+        return set()
+    ids, start = set(), 0
+    while start < 2500:
+        url = (f"{SELLER_URL}/api/catalog_system/pub/products/search"
+               f"?fq=productClusterIds:{NEW_IN_COLLECTION}&_from={start}&_to={start + 49}")
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        batch = json.loads(urllib.request.urlopen(req, timeout=60).read())
+        if not batch:
+            break
+        for prod in batch:
+            ids.add(str(prod.get("productId", "")))
+            for sku in prod.get("items", []):
+                ids.add(str(sku.get("itemId", "")))
+        start += 50
+    print(f"{len(ids)} IDs na colecao New In")
+    return ids
+
+
 def main():
+    new_in = new_in_ids()
     req = urllib.request.Request(FEED_URL, headers={"User-Agent": "Mozilla/5.0"})
     data = urllib.request.urlopen(req, timeout=120).read()
     root = ET.fromstring(data)
@@ -107,6 +133,7 @@ def main():
             "gender": f.get("gender", ""),
             "age_group": f.get("age_group", ""),
             **{f"custom_label_{i}": clean(f.get(f"custom_label_{i}")) for i in range(5)},
+            "custom_label_0": "new_in" if item_id in new_in else clean(f.get("custom_label_0")),
             "seller_name": SELLER_NAME,
             "seller_url": SELLER_URL,
             "return_policy": RETURN_POLICY,
